@@ -54,13 +54,6 @@ function serverMessage(text) {
     });
 }
 
-function noop() {}
-
-function heartbeat() {
-    console.log('pong');
-    this.isAlive = true;
-}
-
 wss.broadcast = function broadcast(data) {
     wss.clients.forEach(function each(client) {
         if (client.readyState === WebSocket.OPEN && client.nickname) {
@@ -70,13 +63,20 @@ wss.broadcast = function broadcast(data) {
 };
 
 wss.on('connection', function connection(ws, req) {
-    ws.isAlive = true;
-    ws.on('pong', heartbeat);
-
     const ip = req.connection.remoteAddress;
     let nickname = false;
+    let terminated = false;
+
+    ws.timeout = setTimeout(() => onTimeout(), timeoutLength);
+
+    function onTimeout() {
+        terminated = true;
+        ws.terminate();
+        wss.broadcast(serverMessage(nickname + ' was disconnected due to inactivity'));
+    }
 
     ws.on('message', function incoming(data) {
+        clearTimeout(ws.timeout);
         console.log('received: %s', data, 'ip: ', ip);
         console.log('We have ' + wss.clients.size + ' clients');
 
@@ -150,11 +150,14 @@ wss.on('connection', function connection(ws, req) {
             };
             return JSON.stringify({ type:'message', data: obj });
         }
+
+        ws.timeout = setTimeout(() => onTimeout(), timeoutLength);
     });
 
     ws.on('close', function close() {
+        clearTimeout(ws.timeout);
         console.log('disconnected');
-        if (nickname !== false) {
+        if (nickname !== false && terminated !== true) {
             console.log((new Date()) + " Peer " + ip + " disconnected.");
 
             wss.broadcast(serverMessage(nickname + ' left the chat, connection lost'));
@@ -162,19 +165,9 @@ wss.on('connection', function connection(ws, req) {
     });
 
     ws.on("error", function error (err) {
+        clearTimeout(ws.timeout);
         console.log("Caught flash policy server socket error: ");
         console.log(err.stack);
 
     });
 });
-
-function pingTimeout() {
-    wss.clients.forEach(function each(ws) {
-        if (ws.isAlive === false) return ws.terminate();
-
-        ws.isAlive = false;
-        ws.ping(noop);
-    });
-    setTimeout(pingTimeout, timeoutLength)
-}
-pingTimeout();
