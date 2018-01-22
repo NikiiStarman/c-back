@@ -1,20 +1,21 @@
+require('dotenv').config();
+
 const WebSocket = require('ws');
-
-const wss = new WebSocket.Server({ port: 1337 });
-
 const isValidUTF8 = require('utf-8-validate');
 
-const maxMessageLength = 280;
+const wsPort = process.env.WSS_PORT;
+const timeoutLength = process.env.TIMEOUT_LENGTH_MS;
+const maxMessageLength = process.env.MAX_MESSAGE_LENGTH;
 
-/**
- * Helper function for escaping input strings
- */
+const wss = new WebSocket.Server({ port: wsPort });
+
+const nicknameRegex = /^[a-z0-9]{2,10}$/i;
+
 function htmlEntities(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-const nicknameRegex = /^[a-z0-9]{2,10}$/i;
 function validateNickname(data) {
     if (!isValidUTF8(Buffer.from(data))) {
         return false;
@@ -174,6 +175,6 @@ function pingTimeout() {
         ws.isAlive = false;
         ws.ping(noop);
     });
-    setTimeout(pingTimeout, 3000)
+    setTimeout(pingTimeout, timeoutLength)
 }
 pingTimeout();
