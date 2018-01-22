@@ -1,0 +1,22 @@
+{
+  "name": "chat-server",
+  "version": "0.0.1",
+  "description": "Server for chat app",
+  "main": "\u001b[A\u001b[B\u001b[D\u001b[D\u001b[D\u001b[D\u001b[Cerver\t\u001b[D\u001b[D\u001b[D\u001b[3~\u001b[3~\u001b[3~\u001b[3~.js",
+  "dependencies": {
+    "ws": "^4.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "node ws-server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "none"
+  },
+  "keywords": [
+    "none"
+  ],
+  "author": "JN",
+  "license": "MIT"
+}
