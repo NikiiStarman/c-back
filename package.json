@@ -4,6 +4,7 @@
   "description": "Server for chat app",
   "main": "\u001b[A\u001b[B\u001b[D\u001b[D\u001b[D\u001b[D\u001b[Cerver\t\u001b[D\u001b[D\u001b[D\u001b[3~\u001b[3~\u001b[3~\u001b[3~.js",
   "dependencies": {
+    "utf-8-validate": "^4.0.0",
     "ws": "^4.0.0"
   },
   "devDependencies": {},
