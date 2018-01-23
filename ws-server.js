@@ -83,7 +83,7 @@ wss.on('connection', (ws, req) => {
 
     function onTimeout() {
         terminated = true;
-        ws.terminate('onTimeout ws.terminate');
+        ws.terminate();
         log.info({
             type: 'disconnect',
             reason: 'timeout',
@@ -92,7 +92,9 @@ wss.on('connection', (ws, req) => {
                 nickname: ws.nickname
             }
         });
-        wss.broadcast(serverMessage(ws.nickname + ' was disconnected due to inactivity'));
+        if (ws.nickname) {
+            wss.broadcast(serverMessage(ws.nickname + ' was disconnected due to inactivity'));
+        }
     }
 
     ws.on('message', (data) => {
