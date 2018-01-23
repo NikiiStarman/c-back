@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const isValidUTF8 = require('utf-8-validate');
 
 const wsPort = process.env.WSS_PORT || 1337;
-const timeoutLength = process.env.TIMEOUT_LENGTH_MS || 10000;
+const timeoutLength = process.env.TIMEOUT_LENGTH_MS || 180000;
 const maxMessageLength = process.env.MAX_MESSAGE_LENGTH || 280;
 
 const bunyan = require('bunyan');
@@ -33,17 +33,6 @@ function htmlEntities(str) {
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function validateNickname(data) {
-    if (!isValidUTF8(Buffer.from(data))) {
-        return false;
-    }
-    let nickname = htmlEntities(data);
-    if (nickname.match(nicknameRegex) === null) {
-        return false;
-    }
-    return nickname;
-}
-
 function nicknameTaken(nickname) {
     let result = false;
     wss.clients.forEach((client) => {
@@ -54,11 +43,12 @@ function nicknameTaken(nickname) {
     return result;
 }
 
-function validateMessage(data) {
-    if (data.length > maxMessageLength || !isValidUTF8(Buffer.from(data))) {
-        return false;
-    }
-    return htmlEntities(data);
+function invalidMessage(data) {
+    return (data.length > maxMessageLength || !isValidUTF8(Buffer.from(data)));
+}
+
+function isRegistered(nickname) {
+    return typeof nickname !== "undefined";
 }
 
 function serverMessage(text) {
@@ -87,10 +77,9 @@ wss.on('connection', (ws, req) => {
         ip: ip,
     });
 
-    let nickname = false;
     let terminated = false;
 
-    ws.timeout = setTimeout(() => onTimeout(), timeoutLength);
+    ws.timeout = setTimeout(onTimeout, timeoutLength);
 
     function onTimeout() {
         terminated = true;
@@ -103,11 +92,13 @@ wss.on('connection', (ws, req) => {
                 nickname: ws.nickname
             }
         });
-        wss.broadcast(serverMessage(nickname + ' was disconnected due to inactivity'));
+        wss.broadcast(serverMessage(ws.nickname + ' was disconnected due to inactivity'));
     }
 
     ws.on('message', (data) => {
         clearTimeout(ws.timeout);
+        ws.timeout = setTimeout(onTimeout, timeoutLength);
+
         log.info({
             type: 'message',
             data: data,
@@ -117,32 +108,41 @@ wss.on('connection', (ws, req) => {
             }
         });
 
-        if (isNewUser()) {
-            let validNickname = checkProvidedNickname();
-            if (validNickname) {
-                registerUser();
-            }
-        } else {
-            let message = parseMessage();
-            if (message) {
-                wss.broadcast(message);
-            }
+        data = htmlEntities(data);
+
+        if (invalidMessage(data)) {
+            ws.send(JSON.stringify({
+                type: 'error',
+                text: 'Invalid message. Max ' + maxMessageLength + ' characters.'
+            }));
+           return;
         }
 
-        function isNewUser() {
-            return ws.nickname == null
+        if (isRegistered(ws.nickname)) {
+            wss.broadcast(JSON.stringify({
+                type: 'message',
+                data: {
+                    time: (new Date()).getTime(),
+                    text: data,
+                    author: ws.nickname
+                }
+            }));
+            return;
         }
 
-        function checkProvidedNickname() {
-            nickname = validateNickname(data);
-            if (nickname === false) {
+        if (validNickname()) {
+            registerUser();
+        }
+
+        function validNickname() {
+            if (data.match(nicknameRegex) === null) {
                 ws.send(JSON.stringify({
                     type: 'error',
-                    text: 'Invalid nickname. Min 2, max 10, latin characters or numbers.'
+                    text: 'Failed to connect. Invalid nickname. Min 2, max 10, latin characters or numbers.'
                 }));
                 return false;
             }
-            if (nicknameTaken(nickname)) {
+            if (nicknameTaken(data)) {
                 ws.send(JSON.stringify({
                     type: 'error',
                     text: 'Failed to connect. Nickname already taken.'
@@ -153,15 +153,15 @@ wss.on('connection', (ws, req) => {
         }
 
         function registerUser() {
-            ws.nickname = nickname;
+            ws.nickname = data;
             ws.send(JSON.stringify({
                 type:'user',
                 data: {
-                    name: nickname
+                    name: ws.nickname
                 }
             }));
 
-            let newUserMessage = serverMessage(nickname + ' has joined');
+            let newUserMessage = serverMessage(ws.nickname + ' has joined');
             wss.clients.forEach((client) => {
                 if (client !== ws && client.readyState === WebSocket.OPEN && client.nickname) {
                     client.send(newUserMessage);
@@ -177,24 +177,6 @@ wss.on('connection', (ws, req) => {
             });
         }
 
-        function parseMessage() {
-            let messageText = validateMessage(data);
-            if (messageText === false) {
-                ws.send(JSON.stringify({
-                    type: 'error',
-                    text: 'Invalid message. Max ' + maxMessageLength + ' characters.'
-                }));
-                return false;
-            }
-            let obj = {
-                time: (new Date()).getTime(),
-                text: htmlEntities(data),
-                author: ws.nickname
-            };
-            return JSON.stringify({ type:'message', data: obj });
-        }
-
-        ws.timeout = setTimeout(() => onTimeout(), timeoutLength);
     });
 
     ws.on('close', () => {
@@ -207,8 +189,8 @@ wss.on('connection', (ws, req) => {
                 nickname: ws.nickname
             }
         });
-        if (nickname !== false && terminated !== true) {
-            wss.broadcast(serverMessage(nickname + ' left the chat, connection lost'));
+        if (isRegistered(ws.nickname) && terminated !== true) {
+            wss.broadcast(serverMessage(ws.nickname + ' left the chat, connection lost'));
         }
     });
 
