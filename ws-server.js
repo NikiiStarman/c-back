@@ -16,7 +16,7 @@ if (process.platform === "win32") {
         output: process.stdout
     });
 
-    rl.on("SIGINT", function () {
+    rl.on("SIGINT", () => {
         process.emit("SIGINT");
     });
 }
@@ -39,7 +39,7 @@ function validateNickname(data) {
 
 function nicknameTaken(nickname) {
     let result = false;
-    wss.clients.forEach(function each(client) {
+    wss.clients.forEach((client) => {
         if (client.nickname === nickname) {
             result = true;
         }
@@ -64,15 +64,15 @@ function serverMessage(text) {
     });
 }
 
-wss.broadcast = function broadcast(data) {
-    wss.clients.forEach(function each(client) {
+wss.broadcast = (data) => {
+    wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN && client.nickname) {
             client.send(data);
         }
     });
 };
 
-wss.on('connection', function connection(ws, req) {
+wss.on('connection', (ws, req) => {
     const ip = req.connection.remoteAddress;
     let nickname = false;
     let terminated = false;
@@ -85,7 +85,7 @@ wss.on('connection', function connection(ws, req) {
         wss.broadcast(serverMessage(nickname + ' was disconnected due to inactivity'));
     }
 
-    ws.on('message', function incoming(data) {
+    ws.on('message', (data) => {
         clearTimeout(ws.timeout);
         console.log('received: %s', data, 'ip: ', ip);
         console.log('We have ' + wss.clients.size + ' clients');
@@ -135,7 +135,7 @@ wss.on('connection', function connection(ws, req) {
             }));
 
             let newUserMessage = serverMessage(nickname + ' has joined');
-            wss.clients.forEach(function each(client) {
+            wss.clients.forEach((client) => {
                 if (client !== ws && client.readyState === WebSocket.OPEN && client.nickname) {
                     client.send(newUserMessage);
                 }
@@ -164,7 +164,7 @@ wss.on('connection', function connection(ws, req) {
         ws.timeout = setTimeout(() => onTimeout(), timeoutLength);
     });
 
-    ws.on('close', function close() {
+    ws.on('close', () => {
         clearTimeout(ws.timeout);
         console.log('disconnected');
         if (nickname !== false && terminated !== true) {
@@ -174,7 +174,7 @@ wss.on('connection', function connection(ws, req) {
         }
     });
 
-    ws.on("error", function error (err) {
+    ws.on("error", (err) => {
         clearTimeout(ws.timeout);
         console.log("Caught flash policy server socket error: ");
         console.log(err.stack);
