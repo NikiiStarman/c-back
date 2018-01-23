@@ -15,6 +15,7 @@ log.warn({
 });
 
 const nicknameRegex = /^[a-z0-9]{2,10}$/i;
+const CODE_CLOSE_ON_TIMEOUT = 4000;
 
 // SIGINT for Windows
 if (process.platform === "win32") {
@@ -77,24 +78,10 @@ wss.on('connection', (ws, req) => {
         ip: ip,
     });
 
-    let terminated = false;
-
     ws.timeout = setTimeout(onTimeout, timeoutLength);
 
     function onTimeout() {
-        terminated = true;
-        ws.terminate();
-        log.info({
-            type: 'disconnect',
-            reason: 'timeout',
-            user: {
-                ip: ip,
-                nickname: ws.nickname
-            }
-        });
-        if (ws.nickname) {
-            wss.broadcast(serverMessage(ws.nickname + ' was disconnected due to inactivity'));
-        }
+        ws.close(CODE_CLOSE_ON_TIMEOUT);
     }
 
     ws.on('message', (data) => {
@@ -181,18 +168,35 @@ wss.on('connection', (ws, req) => {
 
     });
 
-    ws.on('close', () => {
+    ws.on('close', (closeCode) => {
         clearTimeout(ws.timeout);
+
+        let reason = 'unknown';
+        let message = null;
+
+        if (isRegistered(ws.nickname)) {
+            switch (closeCode) {
+                case CODE_CLOSE_ON_TIMEOUT:
+                    reason = 'timeout';
+                    message = ws.nickname + ' was disconnected due to inactivity';
+                    break;
+                default:
+                    message = ws.nickname + ' left the chat, connection lost';
+            }
+        }
+
         log.info({
             type: 'disconnect',
-            reason: 'unknown',
+            reason: reason,
+            code: closeCode,
             user: {
                 ip: ip,
                 nickname: ws.nickname
             }
         });
-        if (isRegistered(ws.nickname) && terminated !== true) {
-            wss.broadcast(serverMessage(ws.nickname + ' left the chat, connection lost'));
+
+        if (message) {
+            wss.broadcast(serverMessage(message));
         }
     });
 
