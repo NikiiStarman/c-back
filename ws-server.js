@@ -2,10 +2,17 @@ const WebSocket = require('ws');
 const isValidUTF8 = require('utf-8-validate');
 
 const wsPort = process.env.WSS_PORT || 1337;
-const timeoutLength = process.env.TIMEOUT_LENGTH_MS || 180000;
+const timeoutLength = process.env.TIMEOUT_LENGTH_MS || 10000;
 const maxMessageLength = process.env.MAX_MESSAGE_LENGTH || 280;
 
+const bunyan = require('bunyan');
+const log = bunyan.createLogger({name: 'chat-server'});
+
 const wss = new WebSocket.Server({ port: wsPort });
+
+log.warn({
+    type: 'server-up',
+});
 
 const nicknameRegex = /^[a-z0-9]{2,10}$/i;
 
@@ -74,6 +81,12 @@ wss.broadcast = (data) => {
 
 wss.on('connection', (ws, req) => {
     const ip = req.connection.remoteAddress;
+
+    log.info({
+        type: 'new-connection',
+        ip: ip,
+    });
+
     let nickname = false;
     let terminated = false;
 
@@ -81,14 +94,28 @@ wss.on('connection', (ws, req) => {
 
     function onTimeout() {
         terminated = true;
-        ws.terminate();
+        ws.terminate('onTimeout ws.terminate');
+        log.info({
+            type: 'disconnect',
+            reason: 'timeout',
+            user: {
+                ip: ip,
+                nickname: ws.nickname
+            }
+        });
         wss.broadcast(serverMessage(nickname + ' was disconnected due to inactivity'));
     }
 
     ws.on('message', (data) => {
         clearTimeout(ws.timeout);
-        console.log('received: %s', data, 'ip: ', ip);
-        console.log('We have ' + wss.clients.size + ' clients');
+        log.info({
+            type: 'message',
+            data: data,
+            user: {
+                ip: ip,
+                nickname: ws.nickname
+            }
+        });
 
         if (isNewUser()) {
             let validNickname = checkProvidedNickname();
@@ -141,7 +168,13 @@ wss.on('connection', (ws, req) => {
                 }
             });
 
-            console.log((new Date()) + ' User is known as: ' + nickname + '.');
+            log.info({
+                type: 'new-user',
+                user: {
+                    ip: ip,
+                    nickname: ws.nickname
+                }
+            });
         }
 
         function parseMessage() {
@@ -166,18 +199,25 @@ wss.on('connection', (ws, req) => {
 
     ws.on('close', () => {
         clearTimeout(ws.timeout);
-        console.log('disconnected');
+        log.info({
+            type: 'disconnect',
+            reason: 'unknown',
+            user: {
+                ip: ip,
+                nickname: ws.nickname
+            }
+        });
         if (nickname !== false && terminated !== true) {
-            console.log((new Date()) + " Peer " + ip + " disconnected.");
-
             wss.broadcast(serverMessage(nickname + ' left the chat, connection lost'));
         }
     });
 
     ws.on("error", (err) => {
         clearTimeout(ws.timeout);
-        console.log("Caught flash policy server socket error: ");
-        console.log(err.stack);
+        log.error({
+            type: 'error',
+            error: err
+        });
 
     });
 });
@@ -185,18 +225,28 @@ wss.on('connection', (ws, req) => {
 process.on('SIGTERM',   () => shutdown('SIGTERM'));
 process.on('SIGINT',    () => shutdown('SIGINT'));
 
-function shutdown(type) {
-    console.log('Got ' + type + '. Graceful shutdown start', new Date().toISOString());
+function shutdown(signal) {
+    log.warn({
+        type: 'shutdown',
+        signal: signal,
+        status: 'start'
+    });
 
     wss.close((err) => {
-        console.log('onServerClosed');
 
         if (err) {
-            console.log(err);
+            log.error({
+                type: 'error',
+                error: err
+            });
             process.exit(1)
         }
 
-        console.log('Graceful shutdown finished', new Date().toISOString());
+        log.warn({
+            type: 'shutdown',
+            signal: signal,
+            status: 'end'
+        });
         process.exit()
     })
 }

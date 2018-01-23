@@ -4,6 +4,7 @@
   "description": "Server for chat app",
   "main": "ws-server.js",
   "dependencies": {
+    "bunyan": "^1.8.12",
     "utf-8-validate": "^4.0.0",
     "ws": "^4.0.0"
   },
