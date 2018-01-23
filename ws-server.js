@@ -9,6 +9,18 @@ const wss = new WebSocket.Server({ port: wsPort });
 
 const nicknameRegex = /^[a-z0-9]{2,10}$/i;
 
+// SIGINT for Windows
+if (process.platform === "win32") {
+    const rl = require("readline").createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    rl.on("SIGINT", function () {
+        process.emit("SIGINT");
+    });
+}
+
 function htmlEntities(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -169,3 +181,22 @@ wss.on('connection', function connection(ws, req) {
 
     });
 });
+
+process.on('SIGTERM',   () => shutdown('SIGTERM'));
+process.on('SIGINT',    () => shutdown('SIGINT'));
+
+function shutdown(type) {
+    console.log('Got ' + type + '. Graceful shutdown start', new Date().toISOString());
+
+    wss.close((err) => {
+        console.log('onServerClosed');
+
+        if (err) {
+            console.log(err);
+            process.exit(1)
+        }
+
+        console.log('Graceful shutdown finished', new Date().toISOString());
+        process.exit()
+    })
+}
