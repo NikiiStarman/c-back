@@ -1,11 +1,9 @@
-require('dotenv').config();
-
 const WebSocket = require('ws');
 const isValidUTF8 = require('utf-8-validate');
 
-const wsPort = process.env.WSS_PORT;
-const timeoutLength = process.env.TIMEOUT_LENGTH_MS;
-const maxMessageLength = process.env.MAX_MESSAGE_LENGTH;
+const wsPort = process.env.WSS_PORT || 1337;
+const timeoutLength = process.env.TIMEOUT_LENGTH_MS || 180000;
+const maxMessageLength = process.env.MAX_MESSAGE_LENGTH || 280;
 
 const wss = new WebSocket.Server({ port: wsPort });
 
